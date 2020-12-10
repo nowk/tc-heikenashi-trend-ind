@@ -1,0 +1,185 @@
+// Basic Plot Configuration Inputs
+//
+// NOTE, all these plot indexes are used to provide customization for the scanner
+// and pinpoint specific bull/bear indications
+
+Inputs:
+	int TrendBullPlotIndex( 0 ),
+	int TrendBearPlotIndex( 0 ),
+	int SignlBullPlotIndex( 1 ),
+	int SignlBearPlotIndex( -1 ),
+	int ConfmBullPlotIndex( 1 ),
+	int ConfmBearPlotIndex( -1 );	
+
+{
+// Core Heiken Ashi Calculations
+
+1. The Heikin-Ashi Close is simply an average of the open, 
+high, low and close for the current period. 
+
+HA-Close = (Open(0) + High(0) + Low(0) + Close(0)) / 4
+
+2. The Heikin-Ashi Open is the average of the prior Heikin-Ashi 
+candlestick open plus the close of the prior Heikin-Ashi candlestick. 
+
+HA-Open = (HA-Open(-1) + HA-Close(-1)) / 2
+
+3. The Heikin-Ashi High is the maximum of three data points: 
+the current period's high, the current Heikin-Ashi 
+candlestick open or the current Heikin-Ashi candlestick close. 
+
+HA-High = Maximum of the High(0), HA-Open(0) or HA-Close(0)
+
+4. The Heikin-Ashi low is the minimum of three data points: 
+the current period's low, the current Heikin-Ashi 
+candlestick open or the current Heikin-Ashi candlestick close.
+
+HA-Low = Minimum of the Low(0), HA-Open(0) or HA-Close(0)
+}
+
+Variables:
+	double ha_C( 0 ),
+	double ha_O( 0 ),
+	double ha_H( 0 ),
+	double ha_L( 0 );
+
+ha_C = ( O + H + L + C ) / 4;
+ha_O = ( ha_O[1] + ha_C[1] ) / 2;
+ha_H = Maxlist( H, ha_O, ha_C );
+ha_L = Minlist( L, ha_O, ha_C );
+
+// TODO
+//
+// - [ ] Add plots to display just the general HA coloring
+
+// Find the trigger bars, this is the first flat head or bottom heiken ashi in a movement
+//
+// TODO
+//
+// - [ ] Toggle to switch between using the outer most (largest) trigger, or use the
+// 			nearest trigger as the confirmation bar
+// - [ ] Trend coloring, this should be a togglable option
+
+Variables:
+	bool BullSignl( false ),
+	bool BearSignl( false ),
+	intrabarpersist double BullSignlValue( 0 ),
+	intrabarpersist double BearSignlValue( 0 ),
+	intrabarpersist bool TrendUp( false ),
+	intrabarpersist bool TrendDn( false );
+	
+Setplottype( 2, Ptstring );
+Setplottype( 3, Ptstring );
+
+Begin
+	Plot1( 0, "HATI", White, Default, 2 );
+	
+	// specific to radar screen
+	Plot2( "", "Trend" );
+	Plot3( "", "Alert" );
+	Setplotbgcolor( 3, Black );
+End;
+
+// TODO
+//
+// - [ ] FIXME Alert column bg color gets removed some how, even if there is an active signal
+
+// set trend colors
+
+If ( TrendUp ) Then
+Begin
+	Setplotcolor( 1, Green );
+	Setplotbgcolor( 2, Green );
+End;
+
+If ( TrendDn ) Then
+Begin
+	Setplotcolor( 1, Red );
+	Setplotbgcolor( 2, Red );
+End;
+
+// NOTE
+//
+// Code is executed in a linear fashion, and refreshed in that linear fashion on each
+// tick. The order of execution matters to maintain proper coloring and signaling 
+// values.
+
+If ( BullSignlValue <> 0 ) and ( ha_H > BullSignlValue ) and ( not TrendUp ) Then
+Begin
+	Plot1( ConfmBullPlotIndex, "HATI" );
+	Setplotcolor( 1, Blue );
+	
+	Plot3( !( "Bull Confirmed @ " + Numtostr( BearSignlValue + 0.01, 2 ) ), "Alert" );
+	Setplotbgcolor( 3, Blue );
+	
+	If ( Barstatus( 1 ) = 2 ) Then
+	Begin
+		BullSignlValue = 0;
+		BearSignlValue = 0;
+		TrendUp = true;
+		TrendDn = false;
+	End;
+	
+	Alert( !("") );
+End;
+
+If ( BearSignlValue <> 0 ) and ( ha_L < BearSignlValue ) and ( not TrendDn ) Then
+Begin
+	Plot1( ConfmBearPlotIndex, "HATI" );
+	Setplotcolor( 1, Magenta );
+	
+	Plot3( !( "Bear Confirmed @ " + Numtostr( BearSignlValue + 0.01, 2 ) ), "Alert" );
+	Setplotbgcolor( 3, Magenta );
+	
+	If ( Barstatus( 1 ) = 2 ) Then
+	Begin
+		BearSignlValue = 0;
+		BullSignlValue = 0;
+		TrendDn = true;
+		TrendUp = false;
+	End;
+	
+	Alert( !("") );
+End;
+
+// Signals follow a basic formula that reads as such -
+//
+// (Bullish Example) When the today's bar has a flat bottom, and the day prior 
+// does not, and we are not already in an existing Bull trend.
+//
+// *Reverse for Bear signals*
+
+
+BullSignl = ( ha_O = ha_L ) and ( ha_O[1] <> ha_L[1] ) and ( not TrendUp );
+BearSignl = ( ha_O = ha_H ) and ( ha_O[1] <> ha_H[1] ) and ( not TrendDn );
+
+// NOTE
+//
+// Signals values used to confirm the signal are set on the last tick to avoid
+// issues that come from the intrabar updates.
+
+If BullSignl Then
+Begin
+	If ( Barstatus( 1 ) = 2 ) Then BullSignlValue = ha_H;
+	
+	Plot1( SignlBullPlotIndex, "HATI" );
+	Setplotcolor( 1, Cyan );
+	
+	Plot3( !( "Bull Signal @ " + Numtostr( ha_H, 2 ) ), "Alert", Black );
+	Setplotbgcolor( 3, Cyan );
+	
+	Alert( !("") );
+End;
+
+If BearSignl Then
+Begin
+	If ( Barstatus( 1 ) = 2 ) Then BearSignlValue = ha_L; 
+	
+	Plot1( SignlBearPlotIndex, "HATI" );
+	Setplotcolor( 1, Yellow );
+	
+	Plot3( !( "Bear Signal @ " + Numtostr( ha_L, 2 ) ), "Alert", Black );
+	Setplotbgcolor( 3, Yellow );
+	
+	Alert( !("") );
+End;
