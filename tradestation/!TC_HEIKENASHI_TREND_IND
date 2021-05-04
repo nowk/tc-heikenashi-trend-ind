@@ -9,7 +9,9 @@ Inputs:
 	int SignlBullPlotIndex( 1 ),
 	int SignlBearPlotIndex( -1 ),
 	int ConfmBullPlotIndex( 1 ),
-	int ConfmBearPlotIndex( -1 );	
+	int ConfmBearPlotIndex( -1 ),
+	int SignlBullFlatIndex( 2 ),
+	int SignlBearFlatIndex( -2 );
 
 {
 // Core Heiken Ashi Calculations
@@ -63,6 +65,8 @@ ha_L = Minlist( L, ha_O, ha_C );
 Variables:
 	bool BullSignl( false ),
 	bool BearSignl( false ),
+	bool BullFlatSignl( false ),
+	bool BearFlatSignl( false ),
 	intrabarpersist double BullSignlValue( 0 ),
 	intrabarpersist double BearSignlValue( 0 ),
 	intrabarpersist bool TrendUp( false ),
@@ -96,6 +100,31 @@ If ( TrendDn ) Then
 Begin
 	Setplotcolor( 1, Red );
 	Setplotbgcolor( 2, Red );
+End;
+
+// Flat bottom/tops when the previous day was not a flat bottom/top of the same type
+// direction
+
+BullFlatSignl = ( ha_O = ha_L ) and ( ha_O[1] <> ha_L[1] );
+BearFlatSignl = ( ha_O = ha_H ) and ( ha_O[1] <> ha_H[1] );
+
+// Plot these flat bottom signals
+// NOTE these should never plot in the opposite trend of the signal
+
+If BullFlatSignl Then
+Begin
+	Plot1( SignlBullFlatIndex, "HATI" );
+	Setplotcolor( 1, DarkGreen );
+	
+	Plot3( !( "Bull Flat @ " + Numtostr( ha_H + 0.01, 2 ) ), "Alert" );
+End;
+
+If BearFlatSignl Then
+Begin
+	Plot1( SignlBearFlatIndex, "HATI" );
+	Setplotcolor( 1, DarkRed );
+	
+	Plot3( !( "Bear Flat @ " + Numtostr( ha_L - 0.01, 2 ) ), "Alert" );
 End;
 
 // NOTE
@@ -149,9 +178,8 @@ End;
 //
 // *Reverse for Bear signals*
 
-
-BullSignl = ( ha_O = ha_L ) and ( ha_O[1] <> ha_L[1] ) and ( not TrendUp );
-BearSignl = ( ha_O = ha_H ) and ( ha_O[1] <> ha_H[1] ) and ( not TrendDn );
+BullSignl = BullFlatSignl and ( not TrendUp );
+BearSignl = BearFlatSignl and ( not TrendDn );
 
 // NOTE
 //
